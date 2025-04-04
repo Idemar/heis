@@ -3,6 +3,7 @@ use std::io;
 use std::fs::File;
 use std::io::Read;
 use std::time::Instant;
+use std::time::Duration;
 
 pub fn start_simulator() {
     
@@ -67,11 +68,34 @@ pub fn start_simulator() {
             .as_secs_f64();
         perv_loop_time = now;
 
+        location = location + speed * dt;
+        speed = speed + acceleration * dt;
+        acceleration = {
+            let F =(motor_voltage_up - motor_voltage_down) * 8.0;
+            let m = 1200000.0;
+            -9.8 +F/m
+        };
 
         //5.2. Hvis forespørselen om neste etasje i køen er tilfredsstilt, fjern deretter fra køen
+        let next_floor = floor_requests[0];
+        if (location - (next_floor as f64) * floor_height).abs() < 0.01 &&
+            speed.abs() < 0.01 {
+            speed = 0.0;
+            floor_requests.remove(0);
+        }
         //5.3. Juster motorkontrollen for å behandle forespørselen neste etasje
+        //det vil ta t sekunder å bremse fra hastigheten v fra -1 m/s^2
+        let t = speed.abs() / 1.0;
+
+        //i løpet av denne tiden vil vognen reise d=t * v/2 meter
+        //med en gjennomsnittshastighet på v/2 før stopp
+        let d = t * (speed / 2.0);
+
+        //l = avstand til neste etasje
+        let l = (location - (next_floor as f64) * floor_height).abs();
+
         //5.4. Skriv ut sanntidsstatistikk
-    }   thread::sleep(time::Duration::from_millis(10));
+    }   thread::sleep(Duration::from_millis(10));
         
         //6. Skriv ut sammendrag   
         println!("sammendrag");
