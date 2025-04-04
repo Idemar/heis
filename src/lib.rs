@@ -1,7 +1,9 @@
-use std::env;
+use std::{env, thread};
 use std::io;
 use std::fs::File;
 use std::io::Read;
+use std::time::Instant;
+
 pub fn start_simulator() {
     
     // 1. Lagre etasje, hastighet og akselerasjonstilstand
@@ -56,17 +58,20 @@ pub fn start_simulator() {
     }
 
     //5. Loop mens det er gjenværende etasjen forespørsler 
-    
+    let mut perv_loop_time = Instant::now();
 
     while !floor_requests.is_empty() {      
         //5.1. Oppdater plassering, hastighet og akselerasjon
-        
+        let now = Instant::now();
+        let dt = now.duration_since(perv_loop_time)
+            .as_secs_f64();
+        perv_loop_time = now;
 
 
         //5.2. Hvis forespørselen om neste etasje i køen er tilfredsstilt, fjern deretter fra køen
         //5.3. Juster motorkontrollen for å behandle forespørselen neste etasje
         //5.4. Skriv ut sanntidsstatistikk
-    }   
+    }   thread::sleep(time::Duration::from_millis(10));
         
         //6. Skriv ut sammendrag   
         println!("sammendrag");
