@@ -10,7 +10,7 @@ pub fn start_simulator() {
     // 1. Lagre etasje, hastighet og akselerasjonstilstand
     let mut location: f64 = 0.0; // meter
     let mut speed: f64 = 0.0; // meter per sekund
-    let mut acceleration:f64 = 0.0; // meter per sekund^2
+    let mut acceleration: f64 = 0.0; // meter per sekund^2
                                  
     // 2. Lagre motor inngangsspenning
     let mut motor_voltage_up: f64 = 0.0;
@@ -73,7 +73,7 @@ pub fn start_simulator() {
         acceleration = {
             let F =(motor_voltage_up - motor_voltage_down) * 8.0;
             let m = 1200000.0;
-            -9.8 +F/m
+            -9.8 + F/m
         };
 
         //5.2. Hvis forespørselen om neste etasje i køen er tilfredsstilt, fjern deretter fra køen
@@ -93,6 +93,50 @@ pub fn start_simulator() {
 
         //l = avstand til neste etasje
         let l = (location - (next_floor as f64) * floor_height).abs();
+
+        let target_acceleration = {
+            // skal vi opp?
+            let going_up = location < (next_floor as f64) * floor_height;
+
+            //Ikke overskrid maksimal hastighet
+            if speed.abs() >= 5.0 {
+                //hvis vi skal opp og faktisk går opp
+                //eller vi skal ned og faktisk går ned
+                if (going_up && speed > 0.0) || (!going_up && speed < 0.0) {
+                    0.0
+                    //bremse hvis du går i feil retning
+                } else if going_up {
+                    1.0
+                } else {
+                    -1.0
+                }
+            //Hvis du er innenfor behagelig retardasjonsområde og beveger deg i riktig retning, retarder       
+            } else if l < d && going_up == (speed > 0.0) {
+                if going_up {
+                    -1.0
+                } else {
+                    1.0
+                }
+            //ellers hvis ikke ved topphastighet, akselerer
+            } else {
+                if going_up {
+                    1.0
+                } else {
+                    -1.0
+                }
+            }
+        };
+
+        let gravity_adjusted_acceleration = target_acceleration + 9.8;
+        let target_force = gravity_adjusted_acceleration * 1200000.0;
+        let target_voltage = target_force / 8.0;
+        if target_voltage > 0.0 {
+            motor_voltage_up = target_voltage;
+            motor_voltage_down = 0.0;
+        } else {
+            motor_voltage_up = 0.0;
+            motor_voltage_down = target_voltage.abs();
+        };
 
         //5.4. Skriv ut sanntidsstatistikk
     }   thread::sleep(Duration::from_millis(10));
