@@ -1,7 +1,7 @@
 use std::{env, thread};
 use std::io;
 use std::fs::File;
-use std::io::Read;
+use std::io::{stdout, Read};
 use std::time::Instant;
 use std::time::Duration;
 
@@ -58,8 +58,14 @@ pub fn start_simulator() {
         }
     }
 
-    //5. Loop mens det er gjenværende etasjen forespørsler 
+    //5. Loop mens det er gjenværende etasje forespørsler
     let mut perv_loop_time = Instant::now();
+    let termsize = termion::terminal_size().ok();
+    let termwidth = termsize.map(|(w,_)| w - 2).expect("termwidth");
+    let termheight = termsize.map(|(h,_)| h - 2).expect("termheight");
+    let mut _stdout = io::stdout(); //lås én gang, i stedet for én gang per skriving
+    let mut stdout = _stdout.lock().into_raw_mode().unwrap();
+
 
     while !floor_requests.is_empty() {      
         //5.1. Oppdater plassering, hastighet og akselerasjon
