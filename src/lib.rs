@@ -1,9 +1,39 @@
 use std::{cmp, env, thread};
-use std::io;
 use std::fs::File;
-use std::io::{stdout, Read};
+use std::io::{self, Read, Write};
 use std::time::Instant;
 use std::time::Duration;
+use termion::cursor;
+use termion::clear;
+use termion::raw;
+
+fn variable_summary<W: Write>(stdout: &mut raw::RawTerminal<W>, vname: &str, data: Vec<f64>) {
+    let (avg, dev) = variable_summary_stats(data);
+    variable_summary_print(stdout, vname, avg, dev);
+}
+
+fn variable_summary_stats(data: Vec<f64>) -> (f64, f64)
+{
+    //beregn statistikk
+    let N = data.len();
+    let sum: f64 = data.iter().sum();
+    let avg = sum / (N as f64);
+    let dev = (
+        data.clone().into_iter()
+            .map(|v| (v - avg).powi(2))
+            .fold(0.0, |a, b| a+b)
+            / (N as f64)
+    ).sqrt();
+    (avg, dev)
+}
+
+fn variable_summary_print<W: Write>(stdout: &mut raw::RawTerminal<W>, vname: &str, avg: f64, dev: f64)
+{
+    //skriv ut formatert utdata
+    write!(stdout, "Average of {:25}{:.6}\r\n", vname, avg);
+    write!(stdout, "Standard deviation of {:14}{:.6}\r\n", vname, dev);
+    write!(stdout, "\r\n");
+}
 
 pub fn start_simulator() {
     
@@ -78,6 +108,11 @@ pub fn start_simulator() {
             .as_secs_f64();
         perv_loop_time = now;
 
+        record_location.push(location);
+        record_speed.push(speed);
+        record_acceleration.push(acceleration);
+        record_voltage.push(motor_voltage_up - motor_voltage_down);
+
         location = location + speed * dt;
         speed = speed + acceleration * dt;
         acceleration = {
@@ -149,12 +184,12 @@ pub fn start_simulator() {
         };
 
         //5.4. Skriv ut sanntidsstatistikk
-        print!("{}{}{}", clear::All, cursor::GoTo(1,1), cursor::Hide);
+        print!("{}{}{}", clear::All, cursor::Goto(1, 1), cursor::Hide);
         let carriage_floor = (location / floor_height).floor();
         let carriage_floor = if carriage_floor < 1.0 {
             0
         } else {
-            carriage_floor as f64
+            carriage_floor as u64
         };
         let carriage_floor = cmp::min(carriage_floor, floor_count - 1);
         let mut terminal_buffer = vec![' ' as u8; (termwidth * termheight) as usize];
@@ -162,12 +197,12 @@ pub fn start_simulator() {
         for ty in 0..floor_count {
             terminal_buffer[(ty * termwidth + 0) as usize] = '[' as u8;
             terminal_buffer[(ty * termwidth + 1) as usize] =
-                if (ty as f64) == ((floor_count - 1) - carriage_floor) {
+                if (ty as u64) == ((floor_count - 1) - carriage_floor) {
                     'X' as u8
                 } else {
                     ' ' as u8
                 };
-            terminal_buffer[(ty * termwidth + 2) as uszie] = ']' as u8;
+            terminal_buffer[(ty * termwidth + 2) as usize] = ']' as u8;
             terminal_buffer[(ty * termwidth + termwidth - 2) as usize] = '\r' as u8;
             terminal_buffer[(ty * termwidth + termwidth - 1) as usize] = '\n' as u8;
         }
@@ -176,7 +211,7 @@ pub fn start_simulator() {
             format!("Lokasjon           {:.06}", location),
             format!("Hastighet          {:.06}", speed),
             format!("Akselerasjon       {:.06}", acceleration),
-            format!("Spenning [OPP-NED] {:.06}", up_input_voltage-down_input_voltage),
+            format!("Spenning [OPP-NED] {:.06}", motor_voltage_up - motor_voltage_down),
         ];
         for sy in 0..stats.len() {
             for (sx,sc) in stats[sy].chars().enumerate() {
@@ -189,5 +224,35 @@ pub fn start_simulator() {
     }   thread::sleep(Duration::from_millis(10));
         
         //6. Skriv ut sammendrag   
-        println!("sammendrag");
+    write!(stdout, "{}{}{}", clear::All, cursor::Goto(1, 1), cursor::Show).unwrap();
+    variable_summary(&mut stdout, "lokasjon", record_location);
+    variable_summary(&mut stdout, "hastighet", record_speed);
+    variable_summary(&mut stdout, "akselerasjon", record_acceleration);
+    variable_summary(&mut stdout, "spenning", record_voltage);
+    stdout.flush().unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn variable_stats() {
+        let test_data = vec![
+            (vec![1.0, 2.0, 3.0, 4.0, 5.0], 3.0, 1.41),
+            (vec![1.0, 3.0, 5.0, 7.0, 9.0], 5.0, 2.83),
+            (vec![1.0, 9.0, 1.0, 9.0, 1.0], 4.2, 3.92),
+            (vec![1.0, 0.5, 0.7, 0.9, 0.6], 0.74, 0.19),
+            (vec![200.0, 3.0, 24.0, 92.0, 111.0], 86.0, 69.84),
+        ];
+        for (data, avg, dev) in test_data
+        {
+            let (ravg, rdev) = variable_summary_stats(data);
+            //det er ikke trygt å bruke direkte == operator på flytere
+            //floats kan være *veldig* nærme og ikke lik
+            //så i stedet sjekker vi at de er veldig nære i verdi
+            assert!( (avg-ravg).abs() < 0.1 );
+            assert!( (dev-rdev).abs() < 0.1 );
+        }
+    }
 }
