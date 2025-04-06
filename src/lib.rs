@@ -1,4 +1,4 @@
-use std::{env, thread};
+use std::{cmp, env, thread};
 use std::io;
 use std::fs::File;
 use std::io::{stdout, Read};
@@ -65,6 +65,10 @@ pub fn start_simulator() {
     let termheight = termsize.map(|(h,_)| h - 2).expect("termheight");
     let mut _stdout = io::stdout(); //lås én gang, i stedet for én gang per skriving
     let mut stdout = _stdout.lock().into_raw_mode().unwrap();
+    let mut record_location = Vec::new();
+    let mut record_speed = Vec::new();
+    let mut record_acceleration = Vec::new();
+    let mut record_voltage = Vec::new();
 
 
     while !floor_requests.is_empty() {      
@@ -145,6 +149,43 @@ pub fn start_simulator() {
         };
 
         //5.4. Skriv ut sanntidsstatistikk
+        print!("{}{}{}", clear::All, cursor::GoTo(1,1), cursor::Hide);
+        let carriage_floor = (location / floor_height).floor();
+        let carriage_floor = if carriage_floor < 1.0 {
+            0
+        } else {
+            carriage_floor as f64
+        };
+        let carriage_floor = cmp::min(carriage_floor, floor_count - 1);
+        let mut terminal_buffer = vec![' ' as u8; (termwidth * termheight) as usize];
+
+        for ty in 0..floor_count {
+            terminal_buffer[(ty * termwidth + 0) as usize] = '[' as u8;
+            terminal_buffer[(ty * termwidth + 1) as usize] =
+                if (ty as f64) == ((floor_count - 1) - carriage_floor) {
+                    'X' as u8
+                } else {
+                    ' ' as u8
+                };
+            terminal_buffer[(ty * termwidth + 2) as uszie] = ']' as u8;
+            terminal_buffer[(ty * termwidth + termwidth - 2) as usize] = '\r' as u8;
+            terminal_buffer[(ty * termwidth + termwidth - 1) as usize] = '\n' as u8;
+        }
+        let stats = vec![
+            format!("Heisen er i etasje {}", carriage_floor + 1),
+            format!("Lokasjon           {:.06}", location),
+            format!("Hastighet          {:.06}", speed),
+            format!("Akselerasjon       {:.06}", acceleration),
+            format!("Spenning [OPP-NED] {:.06}", up_input_voltage-down_input_voltage),
+        ];
+        for sy in 0..stats.len() {
+            for (sx,sc) in stats[sy].chars().enumerate() {
+                terminal_buffer[sy * (termwidth as usize) + 6 + sx] = sc as u8;
+            }
+        }
+        write!(stdout, "{}", String::from_utf8(terminal_buffer).unwrap());
+        stdout.flush().unwrap();
+
     }   thread::sleep(Duration::from_millis(10));
         
         //6. Skriv ut sammendrag   
