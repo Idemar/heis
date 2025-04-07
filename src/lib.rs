@@ -3,9 +3,12 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::time::Instant;
 use std::time::Duration;
-use termion::cursor;
-use termion::clear;
+extern crate termion;
+use termion::{clear, cursor, style};
 use termion::raw;
+use termion::raw::IntoRawMode;
+use termion::input::TermRead;
+use termion::event::Key;
 
 fn variable_summary<W: Write>(stdout: &mut raw::RawTerminal<W>, vname: &str, data: Vec<f64>) {
     let (avg, dev) = variable_summary_stats(data);
@@ -27,11 +30,12 @@ fn variable_summary_stats(data: Vec<f64>) -> (f64, f64)
     (avg, dev)
 }
 
-fn variable_summary_print<W: Write>(stdout: &mut raw::RawTerminal<W>, vname: &str, avg: f64, dev: f64)
+fn variable_summary_print<W: Write + std::os::fd::AsFd>(stdout: &mut raw::RawTerminal<W>, vname: &str, avg: f64, dev: f64) where W: std::os::fd::AsFd
+
 {
     //skriv ut formatert utdata
-    write!(stdout, "Average of {:25}{:.6}\r\n", vname, avg);
-    write!(stdout, "Standard deviation of {:14}{:.6}\r\n", vname, dev);
+    write!(stdout, "Gjennomsnitt av {:25}{:.6}\r\n", vname, avg);
+    write!(stdout, "Standardavvik på {:14}{:.6}\r\n", vname, dev);
     write!(stdout, "\r\n");
 }
 
@@ -52,7 +56,7 @@ pub fn start_simulator() {
     let mut floor_requests: Vec<u64> = Vec::new(); // etasje forespørsel
 
     // 4. Analyser inndata og lagre som bygningsbeskrivelse og etasje ønsker
-    let mut buffer = match env::args().nth(1) {
+    let buffer = match env::args().nth(1) {
         Some(ref fil) if *fil == "-".to_string() => {
             let mut buffer = String::new();
             io::stdin().read_to_string(&mut buffer)
@@ -91,8 +95,8 @@ pub fn start_simulator() {
     //5. Loop mens det er gjenværende etasje forespørsler
     let mut perv_loop_time = Instant::now();
     let termsize = termion::terminal_size().ok();
-    let termwidth = termsize.map(|(w,_)| w - 2).expect("termwidth");
-    let termheight = termsize.map(|(h,_)| h - 2).expect("termheight");
+    let termwidth = termsize.map(|(w,_)| w - 2).expect("termwidth") as u64;
+    let termheight = termsize.map(|(h,_)| h - 2).expect("termheight") as u64;
     let mut _stdout = io::stdout(); //lås én gang, i stedet for én gang per skriving
     let mut stdout = _stdout.lock().into_raw_mode().unwrap();
     let mut record_location = Vec::new();
