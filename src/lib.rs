@@ -4,13 +4,12 @@ use std::io::{self, Read, Write};
 use std::time::Instant;
 use std::time::Duration;
 extern crate termion;
-use termion::{clear, cursor, style};
+use termion::{clear, cursor};
 use termion::raw;
 use termion::raw::IntoRawMode;
 use termion::input::TermRead;
-use termion::event::Key;
 
-fn variable_summary<W: Write>(stdout: &mut raw::RawTerminal<W>, vname: &str, data: Vec<f64>) {
+fn variable_summary<W: Write + std::os::fd::AsFd>(stdout: &mut raw::RawTerminal<W>, vname: &str, data: Vec<f64>) {
     let (avg, dev) = variable_summary_stats(data);
     variable_summary_print(stdout, vname, avg, dev);
 }
